@@ -51,7 +51,7 @@ class Server:
 
         # Prepare un dictionnaire vide qui associe les sockets clients
         # authentifies a leur nom d'utilisateur
-        self._logged_users: dict[str, socket.socket] = {}
+        self._logged_users: dict[socket.socket, str] = {}
 
 
         # [TODO] S'assurer que le dossier SERVER_DATA_DIR existe et
@@ -75,14 +75,8 @@ class Server:
 
     def _remove_client(self, client_soc: socket.socket) -> None:
         """Retire le client des structures de données et ferme sa connexion."""
-
-        # Si necessaire, le serveur retire le socket des utilisateurs connectes
         if client_soc in self._client_socs:
-
-        # Le serveur retire le socket de la liste des sockets connectes
             self._client_socs.remove(client_soc)
-
-        # Le serveur ferme le socket
         client_soc.close()
 
     def _create_account(
@@ -96,7 +90,9 @@ class Server:
         sinon retourne un message d'erreur.
         """
 
-        is_valid = True # temporary
+        username = payload["username"]
+        password = payload["password"]
+
 
         # [TODO] VALIDER LES INFORMATIONS DU CLIENT
 
@@ -128,15 +124,17 @@ class Server:
 
         ### SI SUCCES --> AJOUTER {username: socket} et PREVENIR CLIENT
 
+        username_password_valid = True # supposons que `username` et `password` sont valides
+
         # Le serveur previent le client du succes avec l'entete OK
-        if is_valid:
+        if username_password_valid:
             header = gloutils.Headers.OK
             message = gloutils.GloMessage(header=header)
             data = json.dumps(message)
             glosocket.send_mesg(client_soc, data)
 
             # Le serveur associe le socket du client à ce nom d’utilisateur
-            self._logged_users[payload["username"]] = client_soc
+            self._logged_users[client_soc] = payload["username"]
 
         ### S'IL Y A EU ERREUR --> PREVENIR CLIENT
 
@@ -144,10 +142,10 @@ class Server:
         # le serveur répond avec l’entete ERROR et un message décrivant le problème
         else:
             header = gloutils.Headers.ERROR
-            error_message = "Oops, something went wrong."
+            error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
             content = gloutils.ErrorPayload(error_message=error_message)
             message = gloutils.GloMessage(header=header,
-                                        payload=content)
+                                          payload=content)
             data = json.dumps(message)
             glosocket.send_mesg(client_soc, data)
 
@@ -162,36 +160,53 @@ class Server:
         Si les identifiants sont valides, associe le socket à l'utilisateur et
         retourne un succès, sinon retourne un message d'erreur.
         """
+
+        username = payload["username"]
+        password = payload["password"]    
+
         # [TODO] VALIDER LES INFORMATIONS DU CLIENT
 
-            # Le serveur s’assure que le nom d’utilisateur existe.
-            # [...]
+        # Le serveur s’assure que le nom d’utilisateur existe.
+        # [...]
 
-            # Le serveur hache le mot de passe et s’assure qu’il correspond à celui stocké dans le
-            # dossier de l’utilisateur.
-            # [...]
+        # Le serveur hache le mot de passe et s’assure qu’il correspond à celui stocké dans le
+        # dossier de l’utilisateur.
+        # [...]
 
         # [TODO] SI SUCCES --> (AJOUTER username: socket) + (PREVENIR CLIENT)
 
-            # Le serveur prévient le client du succès avec l’entete OK.
-            # [...]
+        username_password_valid = True # supposons que `username` et `password` sont valides
 
-            # Le serveur associe le socket du client à ce nom d’utilisateur.
-            # [...]
+        # Le serveur previent le client du succes avec l'entete OK
+        if username_password_valid:
+            header = gloutils.Headers.OK
+            message = gloutils.GloMessage(header=header)
+            data = json.dumps(message)
+            glosocket.send_mesg(client_soc, data)
+
+            # Le serveur associe le socket du client à ce nom d’utilisateur
+            self._logged_users[client_soc] = payload["username"]
 
         # [TODO] S'IL Y A EU ERREUR --> PREVENIR CLIENT
 
-            # Si les identifiants sont invalides, le serveur répond avec l’entete ERROR et un message
-            # l’accompagnant.
-            # [...]
+        # Si les identifiants sont invalides, le serveur répond avec l’entete ERROR et un message
+        # l’accompagnant.
+        else:
+            header = gloutils.Headers.ERROR
+            error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
+            content = gloutils.ErrorPayload(error_message=error_message)
+            message = gloutils.GloMessage(header=header,
+                                        payload=content)
+            data = json.dumps(message)
+            glosocket.send_mesg(client_soc, data)
 
-        return gloutils.GloMessage()
+        return message
 
     def _logout(self, client_soc: socket.socket) -> None:
         """Déconnecte un utilisateur."""
 
         # Le serveur retire le socket du dictionnaire des utilisateurs connectés
-        # [...]
+        del self._logged_users[client_soc]
 
     def _get_email_list(self, client_soc: socket.socket) -> gloutils.GloMessage:
         """
@@ -208,12 +223,31 @@ class Server:
     
         # [TODO] À l’aide du gabarit SUBJECT_DISPLAY, le serveur génère une liste de chaque sujet par
         # ordre chronologique. La numérotation commence à 1 avec le courriel le plus récent.
+        email_list = ... # une liste des courriels en ordre chronologique (premier element = plus recent)
+        if email_list:
+            for number, email in enumerate(email_list, start=1):
+                sender, subject, date = email[...]
+                string_to_display = gloutils.SUBJECT_DISPLAY.format(
+                    number=number,
+                    sender=sender,
+                    subject=subject,
+                    date=date
+                )
+                print(string_to_display)
     
         # [TODO] Le serveur transmet la liste au client avec l’entete OK.
-
+        header = gloutils.Headers.OK
+        
         # [TODO] Si l’utilisateur n’a pas de courriel, le serveur transmet une liste vide.
+        email_list = [] if not email_list else email_list
 
-        return gloutils.GloMessage()
+        content = gloutils.EmailListPayload(email_list=email_list)
+        message = gloutils.GloMessage(header=header,
+                                      payload=content)
+        data = json.dumps(message)
+        glosocket.send_mesg(client_soc, data)
+
+        return message
 
     def _get_email(
         self, client_soc: socket.socket, payload: gloutils.EmailChoicePayload
@@ -223,11 +257,30 @@ class Server:
         au socket.
         """
 
+        choice = payload["choice"]
+
         # [TODO] Le serveur récupère le courriel associé au choix de l’utilisateur.
+        # 1) Recup du courriel associe a `choice`
+        # Se faire une fonction qui retourne la liste des courriels en ordre
+        # chronologique (une fonction qu'on pourra reutiliser dans _get_email_list)
+        # et aller recuperer le courriel a l'indice `choice`.
+        email = ... 
 
         # [TODO] Le serveur le transmet au client avec l’entete OK.
+        header = gloutils.Headers.OK
+        payload = gloutils.EmailContentPayload(
+            sender=email[...],
+            destination=email[...],
+            subject=email[...],
+            date=email[...],
+            content=email[...],
+        )
+        message = gloutils.GloMessage(header=header,
+                                      payload=payload)
+        data = json.dumps(message)
+        glosocket.send_mesg(client_soc, data)
 
-        return gloutils.GloMessage()
+        return message
 
     def _get_stats(self, client_soc: socket.socket) -> gloutils.GloMessage:
         """
@@ -236,12 +289,23 @@ class Server:
         """
 
         # [TODO] Le serveur compte le nombre de courriels de l’utilisateur.
+        count = ...
 
         # [TODO] Le serveur calcule le poids total du dossier de l’utilisateur.
+        size = ...
 
         # [TODO] Le serveur transmet les données au client avec l’entete OK.
+        header = gloutils.Headers.OK
+        payload = gloutils.StatsPayload(
+            count=count,
+            size=size
+        )
+        message = gloutils.GloMessage(header=header,
+                                      payload=payload)
+        data = json.dumps(message)
+        glosocket.send_mesg(client_soc, data)
 
-        return gloutils.GloMessage()
+        return message
 
     def _send_email(self, payload: gloutils.EmailContentPayload) -> gloutils.GloMessage:
         """
@@ -254,6 +318,11 @@ class Server:
 
         Retourne un messange indiquant le succès ou l'échec de l'opération.
         """
+        adresse_destinataire = payload["destination"]
+        username_destinataire = ... # strip @glo2000.ca
+        for client_socket, username in self._logged_users.items():
+            if username == username_destinataire:
+                client_soc = client_socket
 
         # [TODO] Le serveur vérifie que le destinataire existe.
 
@@ -261,6 +330,10 @@ class Server:
         # le dossier du destinataire.
 
         # [TODO] Le serveur indique au client le succès de l’opération avec un entete OK.
+        header = gloutils.Headers.OK
+        message = gloutils.GloMessage(header=header)
+        data = json.dumps(message)
+        glosocket.send_mesg(client_soc, data)
 
         # [TODO] Si le destinataire n’existe pas, le serveur place le courriel dans le dossier spécial
         # SERVER_LOST_DIR et répond au client avec un entete ERROR et un message d’erreur
@@ -268,21 +341,50 @@ class Server:
 
         # [TODO] Si le destinataire est externe, le serveur répond au client avec un entete ERROR et 
         # un message d’erreur approprié.
+        header = gloutils.Headers.ERROR
+        error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
+        content = gloutils.ErrorPayload(error_message=error_message)
+        message = gloutils.GloMessage(header=header,
+                                      payload=content)
+        data = json.dumps(message)
+        glosocket.send_mesg(client_soc, data)
 
-        return gloutils.GloMessage()
+        return message
 
     def _process_client(self, client_socket: socket.socket) -> None:
         
         try:
             data = glosocket.recv_mesg(client_socket)
+            reply = json.loads(data)
         except glosocket.GLOSocketError:
             self._client_socs.remove(client_socket)
-        
-        reply = json.loads(data)
 
-        if reply["header"] == gloutils.Headers.AUTH_REGISTER:
-            payload = reply["payload"]
-            self._create_account(client_socket, payload)
+        match reply["header"]:
+
+            case gloutils.Headers.AUTH_REGISTER:
+                payload = reply["payload"]
+                self._create_account(client_socket, payload)
+
+            case gloutils.Headers.AUTH_LOGIN:
+                payload = reply["payload"]
+                self._create_account(client_socket, payload)
+
+            case gloutils.Headers.BYE:
+                self._remove_client(client_socket)
+
+            case gloutils.Headers.INBOX_READING_REQUEST:
+                self._get_email_list(client_socket)
+
+            case gloutils.Headers.INBOX_READING_CHOICE:
+                payload = reply["payload"]
+                self._get_email(client_socket, payload)
+
+            case gloutils.Headers.STATS_REQUEST:
+                self._get_stats(client_socket)
+
+            case gloutils.Headers.EMAIL_SENDING:
+                payload = reply["payload"]
+                self._send_email(payload)
 
     def run(self):
         """Point d'entrée du serveur."""
