@@ -1,9 +1,9 @@
 """\
 GLO-2000 Travail pratique 4 - Client 2025
 Noms et numéros étudiants:
--
--
--
+- Samuel Blanchette
+- Wiseley
+- Jacob Provencher 111 272 785
 """
 
 import argparse
@@ -70,9 +70,11 @@ class Client:
         # Si la réponse est OK, l’utilisateur est authentifié.
         if reply["header"] == gloutils.Headers.OK:
             self._username = username
-            print(f"Bravo, le nom {username} est un nom valider par le serveur!") # temporary
 
-        # [TODO] Si la réponse est ERROR, le client affiche l’erreur et retourne au menu de connexion.
+        # Si la réponse est ERROR, le client affiche l’erreur et retourne au menu de connexion.
+        if reply["header"] == gloutils.Headers.ERROR:
+            error_message = reply["payload"]["error_message"]
+            print(error_message)
 
     def _login(self) -> None:
         """
@@ -82,6 +84,30 @@ class Client:
         Si la connexion est effectuée avec succès, l'attribut `_username`
         est mis à jour, sinon l'erreur est affichée.
         """
+
+        username = input("Entrez un nom d'utilisateur:")
+        password = getpass.getpass("Entrez un mot de passe:")
+
+        header = gloutils.Headers.AUTH_LOGIN
+        payload = gloutils.AuthPayload(username=username,
+                                       password=password)
+        message = gloutils.GloMessage(header=header,
+                                      payload=payload)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
+
+        # Reception de la reponse du serveur
+        data = glosocket.recv_mesg(self._client_socket)
+        reply = json.loads(data)
+
+        # Si la reponse est OK, l'utilisateur est authentifie
+        if reply["header"] == gloutils.Headers.OK:
+            self._username = username
+
+        # Si la réponse est ERROR, le client affiche l’erreur et retourne au menu de connexion.
+        if reply["header"] == gloutils.Headers.ERROR:
+            error_message = reply["payload"]["error_message"]
+            print(error_message)
 
     def _quit(self) -> None:
         """
@@ -111,17 +137,49 @@ class Client:
         retourner au menu principal.
         """
 
-        # [TODO] Le client demande la liste des courriels avec l’entete INBOX_READING_REQUEST.
+        # Le client demande la liste des courriels avec l’entete INBOX_READING_REQUEST.
+        header = gloutils.Headers.INBOX_READING_REQUEST
+        message = gloutils.GloMessage(header=header)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
 
-        # [TODO] Si la liste contient au moins un courriel, elle est affichée, sinon le client retourne au
+        # Reception de la reponse du serveur
+        data = glosocket.recv_mesg(self._client_socket)
+        reply = json.loads(data)
+        email_list = reply["payload"]["email_list"]
+
+        # Si la liste contient au moins un courriel, elle est affichée, sinon le client retourne au
         # menu principal.
+        if enumerate(email_list):
+            for email in email_list:
+                print(email)
 
-        # [TODO] L’utilisateur choisit un courriel dans la liste.
+        # L’utilisateur choisit un courriel dans la liste.
+        choice = int(input(f"Entrez votre choix [1-{len(email_list)}]: "))
 
-        # [TODO] Le client transmet ce choix avec l’entete INBOX_READING_CHOICES.
+        # Le client transmet ce choix avec l’entete INBOX_READING_CHOICE.
+        header = gloutils.Headers.INBOX_READING_CHOICE
+        payload = gloutils.EmailChoicePayload(choice=choice)
+        message = gloutils.GloMessage(header=header,
+                                      payload=payload)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
 
-        # [TODO] Le client affiche le courriel à l’aide du gabarit EMAIL_DISPLAY et retourne au menu
+        # Reception de la reponse du serveur
+        data = glosocket.recv_mesg(self._client_socket)
+        reply = json.loads(data)
+        email_content = reply["payload"]
+
+        # Le client affiche le courriel à l’aide du gabarit EMAIL_DISPLAY et retourne au menu
         # principal.
+        string_to_display = gloutils.EMAIL_DISPLAY.format(
+            sender=email_content["sender"],
+            to=email_content["destination"],
+            subject=email_content["subject"],
+            date=email_content["date"],
+            body=email_content["content"],
+        )
+        print(string_to_display)
 
     def _send_email(self) -> None:
         """
@@ -136,15 +194,35 @@ class Client:
         """
 
         # [TODO] Le client demande à l’utilisateur respectivement :
-        #   - L’adresse de destination
-        #   - Le sujet du courriel
-        #   - Le contenu du courriel
+        destination = input()
+        subject = input()
+        body = input()
 
         # [TODO] Le client récupère l’heure courante depuis le module ‘gloutils’.
+        current_date_time = gloutils.get_current_utc_time()
 
         # [TODO] Le client transfère les informations avec un entete EMAIL_SENDING.
+        header = gloutils.Headers.EMAIL_SENDING
+        payload = gloutils.EmailContentPayload(
+            sender=f"{self._username}@glo2000.ca",
+            destination=destination,
+            subject=subject,
+            date=current_date_time,
+            content=body
+        )
+        message = gloutils.GloMessage(header=header,
+                                      payload=payload)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
+
+        # Reception de la reponse du serveur
+        data = glosocket.recv_mesg(self._client_socket)
+        reply = json.loads(data)
 
         # [TODO] Le client affiche si l’envoi s’est effectué avec succès.
+        destinataire = "NOM TEMPORAIRE"
+        if reply["header"] == gloutils.Headers.OK:
+            print(f"Votre courriel a bel et bien ete envoyer a {destinataire} !")
 
     def _check_stats(self) -> None:
         """
@@ -153,8 +231,22 @@ class Client:
         Affiche les statistiques à l'aide du gabarit `STATS_DISPLAY`.
         """
         # [TODO] Le client demande les statistiques du compte avec un entete STATS_REQUEST.
+        header = gloutils.Headers.STATS_REQUEST
+        message = gloutils.GloMessage(header=header)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
+
+        # Reception de la reponse du serveur
+        data = glosocket.recv_mesg(self._client_socket)
+        reply = json.loads(data)
+        count, size = reply["payload"].values()
 
         # [TODO] Le client affiche les statistiques en utilisant le gabarit STATS_DISPLAY.
+        string_to_display = gloutils.STATS_DISPLAY.format(
+            count=count,
+            size=size
+        )
+        print(string_to_display)
 
     def _logout(self) -> None:
         """
@@ -164,8 +256,13 @@ class Client:
         """
 
         # [TODO] Le client informe le serveur de la déconnexion avec l’entete AUTH_LOGOUT.
+        header = gloutils.Headers.AUTH_LOGOUT
+        message = gloutils.GloMessage(header=header)
+        data = json.dumps(message)
+        glosocket.send_mesg(self._client_socket, data)
 
         # [TODO] Le client retourne sur le menu de connexion.
+        self._username = ""
 
     def run(self) -> None:
         """Point d'entrée du client."""
@@ -187,7 +284,16 @@ class Client:
                         should_quit = True
             else:
                 print(gloutils.CLIENT_USE_CHOICES)
-                break
+                
+                match int(input("Entrez votre choix [1-4]: ")):
+                    case 1:
+                        self._read_email()
+                    case 2:
+                        self._send_email()
+                    case 3:
+                        self._check_stats()
+                    case 4:
+                        self._logout()
 
 
 # NE PAS ÉDITER PASSÉ CE POINT
