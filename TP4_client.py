@@ -194,9 +194,14 @@ class Client:
         """
 
         # [TODO] Le client demande à l’utilisateur respectivement :
-        destination = input()
-        subject = input()
-        body = input()
+        destination = input("Entrez l'adresse du destinataire: ")
+        subject = input("Entrez le sujet: ")
+        print("Entrez le contenu du courriel, terminez la saisie avec un '.'seul sur une ligne:")
+        body = ""
+        buffer = ""
+        while (buffer != ".\n"):
+            body += buffer
+            buffer = input() + '\n'
 
         # [TODO] Le client récupère l’heure courante depuis le module ‘gloutils’.
         current_date_time = gloutils.get_current_utc_time()
@@ -239,7 +244,8 @@ class Client:
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
         reply = json.loads(data)
-        count, size = reply["payload"].values()
+        count = reply["payload"]["count"]
+        size = reply["payload"]["size"]
 
         # [TODO] Le client affiche les statistiques en utilisant le gabarit STATS_DISPLAY.
         string_to_display = gloutils.STATS_DISPLAY.format(
@@ -277,8 +283,8 @@ class Client:
                 match int(input("Entrez votre choix [1-3]: ")):
                     case 1:
                         self._register()
-                    # case 2:
-                    #   self._login()
+                    case 2:
+                      self._login()
                     case 3:
                         self._quit()
                         should_quit = True
