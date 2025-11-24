@@ -85,8 +85,8 @@ class Client:
         est mis à jour, sinon l'erreur est affichée.
         """
 
-        username = input("Entrez un nom d'utilisateur:")
-        password = getpass.getpass("Entrez un mot de passe:")
+        username = input("Entrez un nom d'utilisateur: ")
+        password = getpass.getpass("Entrez un mot de passe: ")
 
         header = gloutils.Headers.AUTH_LOGIN
         payload = gloutils.AuthPayload(username=username,
@@ -209,7 +209,7 @@ class Client:
         # [TODO] Le client transfère les informations avec un entete EMAIL_SENDING.
         header = gloutils.Headers.EMAIL_SENDING
         payload = gloutils.EmailContentPayload(
-            sender=f"{self._username}@glo2000.ca",
+            sender=f"{self._username}@{gloutils.SERVER_DOMAIN}",
             destination=destination,
             subject=subject,
             date=current_date_time,

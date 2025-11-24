@@ -16,13 +16,16 @@ import sys
 import re
 import logging
 
+from datetime import datetime
+from pathlib import Path
+
 import glosocket
 import gloutils
 
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)s: %(message)s',
-    level=logging.INFO
+    level=logging.DEBUG
 )
 logger = logging.getLogger()
 logger.disabled = False
@@ -64,9 +67,13 @@ class Server:
         self._logged_users: dict[socket.socket, str] = {}
 
 
-        # [TODO] S'assurer que le dossier SERVER_DATA_DIR existe et
-        # et qu'il contient le SERVER_LOST_DIR.
-        # Les creer sinon.
+        # S'assurer que le dossier SERVER_DATA_DIR existe et
+        # et qu'il contient le SERVER_LOST_DIR. Les creer sinon.
+
+        self._server_data_dir_path = Path(gloutils.SERVER_DATA_DIR)
+        fullpath = self._server_data_dir_path / gloutils.SERVER_LOST_DIR
+        fullpath.mkdir(parents=True, exist_ok=True)
+
         logger.info("On s'assure que le dossier `SERVER_DATA_DIR`.")
 
     def cleanup(self) -> None:
@@ -119,7 +126,7 @@ class Server:
         password = payload["password"]
 
         logger.info(
-            f"""Les informations fournis sont:
+            f"""Les informations fournis s  ont:
                 - username: {username}
                 - password: {password}"""
         )
@@ -132,11 +139,12 @@ class Server:
             # alphanumeriques, _ (underscore), . (point), ou - (trait d'union).
             # [...]
 
-            # Le serveur s'assure que le nom d'utilisateur n'est pas deja pris.
+            # Le serveur s'assure que le nom d'utilisateur n'est pas deja pris et qu'il
+            # n'est pas `gloutils.SERVER_LOST_DIR`
             # *Note : les noms sont insensibles a la casse (BOB == bob)
             # [...]
 
-            # Le serveur s'arrure que le mot de passe est assez securise:
+            # Le serveur s'assure que le mot de passe est assez securise:
             #   - len(mot_de_passe) >= 10 caracteres
             #   - contient au moins un chiffre
             #   - contient au moins une minuscule
@@ -147,14 +155,15 @@ class Server:
 
         logger.info("Le serveur ajoute les donnees du client dans le serveur.")
 
-            # Le serveur cree un dossier au nom de l'utilisateur dans le dossier SERVER_DATA_DIR
-            # [...]
+        # Le serveur cree un dossier au nom de l'utilisateur dans le dossier SERVER_DATA_DIR
+        user_dir_path = self._server_data_dir_path / username / "emails"
+        user_dir_path.mkdir(parents=True)
 
-            # Le serveur hache le mode de passe de l'utilisateur avec l'algorithme `sha3_512`.
-            # [...]
+        # Le serveur hache le mode de passe de l'utilisateur avec l'algorithme `sha3_512`.
+        # [...]
 
-            # Le serveur ecrire le mot de passe hache dans un fichier nomme PASSWORD_FILENAME
-            # [...]
+        # Le serveur ecrire le mot de passe hache dans un fichier nomme PASSWORD_FILENAME
+        # [...]
 
         username_password_valid = True # supposons que `username` et `password` sont valides
 
@@ -250,33 +259,30 @@ class Server:
 
         Une absence de courriel n'est pas une erreur, mais une liste vide.
         """
-        # [TODO] Le serveur récupère la liste des courriels depuis le dossier de l’utilisateur.
+        # Le serveur récupère la liste des courriels depuis le dossier de l’utilisateur.
         logger.info("Le serveur recupere la liste de courriels...")
 
-        # hardcoded email
-        payload = gloutils.EmailContentPayload(
-            sender="jacob@glo2000.ca",
-            destination="alice@glo2000.ca",
-            subject="hello world",
-            date=gloutils.get_current_utc_time(),
-            content="salut ceci est un test.",
-        )
-        file = json.dumps(payload)
-        data = json.loads(file)
+        sender_username = self._logged_users[client_soc]
+        dir_path = self._server_data_dir_path / sender_username / "emails"
 
-        # [TODO] Pour chaque courriel, le serveur récupère l’envoyeur, le sujet et la date.
-        sender = data["sender"]
-        subject = data["subject"]
-        date = data["date"]
+        email_list = []
+        for email in dir_path.iterdir():
+            with open(email, "r", encoding='utf-8') as file:
+                email_content_payload = json.load(file)
+                email_list.append(
+                    (email_content_payload["sender"],
+                     email_content_payload["subject"],
+                     email_content_payload["date"])
+                )
 
-        # [TODO] À l’aide du gabarit SUBJECT_DISPLAY, le serveur génère une liste de chaque sujet par
-        # ordre chronologique. La numérotation commence à 1 avec le courriel le plus récent.
-        email_list = [(sender, subject, date)]
         list_to_send = []
     
         if email_list:
-            list_to_send = [] # une liste des sujets des courriels en ordre chronologique (premier element = plus recent)
-            for number, email in enumerate(email_list, start=1):
+            for number, email in enumerate(sorted(email_list,
+                                                key=lambda time:
+                                                datetime.strptime(time[-1], "%a, %d %b %Y %H:%M:%S %z"),
+                                                reverse=True),
+                                                start=1):
                 sender, subject, date = email
                 string_to_display = gloutils.SUBJECT_DISPLAY.format(
                     number=number,
@@ -286,8 +292,8 @@ class Server:
                 )
                 list_to_send.append(string_to_display)
     
-        # [TODO] Le serveur transmet la liste au client avec l’entete OK.
-        # [TODO] Si l’utilisateur n’a pas de courriel, le serveur transmet une liste vide.
+        # Le serveur transmet la liste au client avec l’entete OK.
+        # Si l’utilisateur n’a pas de courriel, le serveur transmet une liste vide.
         header = gloutils.Headers.OK
         content = gloutils.EmailListPayload(email_list=list_to_send)
         message = gloutils.GloMessage(header=header,
@@ -308,18 +314,27 @@ class Server:
         choice = payload["choice"]
 
         # [TODO] Le serveur récupère le courriel associé au choix de l’utilisateur.
+        sender_username = self._logged_users[client_soc]
+        dir_path = self._server_data_dir_path / sender_username / "emails"
+
+        emails = []
+        for email in dir_path.iterdir():
+            with open(email, "r", encoding='utf-8') as file:
+                email_content_payload = json.load(file)
+                emails.append((email_content_payload, email_content_payload["date"]))
+
+        for number, email_payload in enumerate(sorted(emails,
+                                                      key=lambda time:
+                                                      datetime.strptime(time[-1], "%a, %d %b %Y %H:%M:%S %z"),
+                                                      reverse=True),
+                                                      start=1):
+            if number == choice:
+                email_infos = gloutils.EmailContentPayload(**email_payload[0])
         
         logger.info(f"Le serveur recupere le courriel associe au choix #{choice}.")
 
         # [TODO] Le serveur le transmet au client avec l’entete OK.
         header = gloutils.Headers.OK
-        email_infos = gloutils.EmailContentPayload( # temporary hardcoded email payload
-            sender="jacob@glo2000.ca",
-            destination="alice@glo2000.ca",
-            subject="hello world",
-            date=gloutils.get_current_utc_time(),
-            content="salut ceci est un test."
-        )
         message = gloutils.GloMessage(header=header,
                                       payload=email_infos)
         data = json.dumps(message)
@@ -353,6 +368,12 @@ class Server:
         glosocket.send_mesg(client_soc, data)
 
         return message
+    
+    def _parse_email_address(self, email_address):
+        """
+        :return: tuple[username, domain]
+        """
+        return re.sub(r"@glo2000\.ca$", "", email_address)
 
     def _send_email(self, payload: gloutils.EmailContentPayload) -> gloutils.GloMessage:
         """
@@ -373,12 +394,21 @@ class Server:
 
         # [TODO] Le serveur utilise les méthodes du module ‘json’ pour écrire le payload tel quel dans
         # le dossier du destinataire.
+        sender = self._parse_email_address(payload["sender"])
+        print(sender)
+        date = payload["date"]
+        internal_receiver_username = self._parse_email_address(payload["destination"]) # !!! TEMPORARY WAY OF PARSING USERNAME...
+
+        email_id = hashlib.sha256(f"{sender}_{date}".encode('utf-8')).hexdigest()
+        filename = f"{email_id}.json"
+
+        dest_file = self._server_data_dir_path / internal_receiver_username / "emails" / filename
+        with open(dest_file, "w", encoding="utf-8") as file:
+            json.dump(payload, file, indent=4)
 
         # [TODO] Le serveur indique au client le succès de l’opération avec un entete OK.
-
-        sender_username = re.sub(r"@glo2000\.ca$", "", payload["sender"])
         for client_socket, logged_username in self._logged_users.items():
-            if sender_username == logged_username:
+            if sender == logged_username:
                 client_soc = client_socket
 
         header = gloutils.Headers.OK
@@ -418,7 +448,7 @@ class Server:
 
             case gloutils.Headers.AUTH_LOGIN:
                 payload = reply["payload"]
-                self._create_account(client_socket, payload)
+                self._login(client_socket, payload)
 
             case gloutils.Headers.BYE:
                 self._remove_client(client_socket)
