@@ -135,40 +135,57 @@ class Server:
 
         logger.info("Le serveur valide les informations du client.")
 
-            # Le serveur s'assure que le nom d'utilisateur ne contient que des caracteres
-            # alphanumeriques, _ (underscore), . (point), ou - (trait d'union).
-            # [...]
+        # Le serveur s'assure que le nom d'utilisateur ne contient que des caracteres
+        # alphanumeriques, _ (underscore), . (point), ou - (trait d'union).
+        is_valid_username_syntax = bool(re.fullmatch(r"[a-zA-Z0-9_.-]+", username))
 
-            # Le serveur s'assure que le nom d'utilisateur n'est pas deja pris et qu'il
-            # n'est pas `gloutils.SERVER_LOST_DIR`
-            # *Note : les noms sont insensibles a la casse (BOB == bob)
-            # [...]
+        # Le serveur s'assure que le nom d'utilisateur n'est pas deja pris et qu'il
+        # n'est pas `gloutils.SERVER_LOST_DIR` *Note : les noms sont insensibles a la casse (BOB == bob)
+        is_not_taken_username = True
+        for repo in self._server_data_dir_path.iterdir():
+            if username.lower() in [repo.name.lower(), gloutils.SERVER_LOST_DIR.lower()]:
+                is_not_taken_username = False
+                break
 
-            # Le serveur s'assure que le mot de passe est assez securise:
-            #   - len(mot_de_passe) >= 10 caracteres
-            #   - contient au moins un chiffre
-            #   - contient au moins une minuscule
-            #   - contient au moins une majuscule
-            # [...]
+        is_valid_username = is_valid_username_syntax and is_not_taken_username
 
-        # [TODO] AJOUTER LES DONNEES DU CLIENT DANS LE SERVEUR
+        # Le serveur s'assure que le mot de passe est assez securise:
+        #   - len(mot_de_passe) >= 10 caracteres
+        #   - contient au moins un chiffre
+        #   - contient au moins une minuscule
+        #   - contient au moins une majuscule
 
-        logger.info("Le serveur ajoute les donnees du client dans le serveur.")
+        is_long_enough_password = bool(len(password) >= 10)
 
-        # Le serveur cree un dossier au nom de l'utilisateur dans le dossier SERVER_DATA_DIR
-        user_dir_path = self._server_data_dir_path / username / "emails"
-        user_dir_path.mkdir(parents=True)
+        at_least_one_digit = r"(?=.*\d)"
+        at_least_lower_case = r"(?=.*[a-z])"
+        at_least_upper_case = r"(?=.*[A-Z])"
+        string_pattern = "^{}{}{}.+$".format(at_least_one_digit,
+                                             at_least_lower_case,
+                                             at_least_upper_case)
+        pattern = re.compile(string_pattern)
+        is_password_complex_enough = bool(re.match(pattern, password))
 
-        # Le serveur hache le mode de passe de l'utilisateur avec l'algorithme `sha3_512`.
-        # [...]
+        is_secure_password = is_long_enough_password and is_password_complex_enough
 
-        # Le serveur ecrire le mot de passe hache dans un fichier nomme PASSWORD_FILENAME
-        # [...]
+        # Si user infos sont valides --> ajouter les donnees du client dans dossier de donnees du serveur
+        if is_valid_username and is_secure_password:
+            logger.info("Le serveur ajoute les donnees du client dans le serveur.")
 
-        username_password_valid = True # supposons que `username` et `password` sont valides
+            # Le serveur cree un dossier au nom de l'utilisateur dans le dossier SERVER_DATA_DIR
+            user_mail_dir_path = self._server_data_dir_path / username / "emails"
+            user_mail_dir_path.mkdir(parents=True)
 
-        # Le serveur previent le client du succes avec l'entete OK
-        if username_password_valid:
+            # Le serveur hache le mode de passe de l'utilisateur avec l'algorithme `sha3_512`.
+            hash_password = hashlib.sha3_512(password.encode('utf_8')).hexdigest()
+
+            # Le serveur ecrit le mot de passe hache dans un fichier nomme PASSWORD_FILENAME
+            user_dir_path = self._server_data_dir_path / username / f"{gloutils.PASSWORD_FILENAME}.json"
+            with open(user_dir_path, "w", encoding='utf-8') as file:
+                content = {"password": hash_password}
+                json.dump(content, file, indent=4)
+
+            # Le serveur previent le client du succes avec l'entete OK
             header = gloutils.Headers.OK
             message = gloutils.GloMessage(header=header)
             data = json.dumps(message)
@@ -181,7 +198,14 @@ class Server:
         # le serveur répond avec l’entete ERROR et un message décrivant le problème
         else:
             header = gloutils.Headers.ERROR
-            error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
+
+            username_syntax_message = " - Le nom d'utilisateur est invalide." if not is_valid_username_syntax else ""
+            username_taken_message = " - Ce nom d'utilisateur est déjà utilisé." if not is_not_taken_username else ""
+            password_security_message = " - Le mot de passe n'est pas assez sûr." if not is_secure_password else ""
+            messages = [username_syntax_message, username_taken_message, password_security_message]
+
+            error_message = "La création a échoué:\n" + "\n".join([message for message in messages if message])
+
             content = gloutils.ErrorPayload(error_message=error_message)
             message = gloutils.GloMessage(header=header,
                                           payload=content)
@@ -209,21 +233,33 @@ class Server:
                 - password: {password}"""
         )  
 
-        # [TODO] VALIDER LES INFORMATIONS DU CLIENT
-
+        # VALIDER LES INFORMATIONS DU CLIENT
         logger.info("Le serveur valide les informations du client.")
 
+        is_username_exists = False
+        is_valid_password = False
+
         # Le serveur s’assure que le nom d’utilisateur existe.
-        # [...]
+        for repo in self._server_data_dir_path.iterdir():
+            if repo.name == gloutils.SERVER_LOST_DIR:
+                continue
+            elif username.lower() == repo.name.lower():
+                is_username_exists = True
+                break
 
         # Le serveur hache le mot de passe et s’assure qu’il correspond à celui stocké dans le
         # dossier de l’utilisateur.
-        # [...]
+        if is_username_exists:
+            password_file_path = self._server_data_dir_path / username / f"{gloutils.PASSWORD_FILENAME}.json"
 
-        username_password_valid = True # supposons que `username` et `password` sont valides
+            with open(password_file_path, "r", encoding='utf-8') as file:
+                stored_hash = json.load(file)["password"]
+            provided_hash = hashlib.sha3_512(password.encode('utf-8')).hexdigest()
+            
+            is_valid_password = hmac.compare_digest(provided_hash, stored_hash)
 
         # Le serveur previent le client du succes avec l'entete OK
-        if username_password_valid:
+        if is_valid_password:
             header = gloutils.Headers.OK
             message = gloutils.GloMessage(header=header)
             data = json.dumps(message)
@@ -236,7 +272,12 @@ class Server:
         # l’accompagnant.
         else:
             header = gloutils.Headers.ERROR
-            error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
+
+            username_exists_message = " - Ce nom d'utilisateur n'existe pas." if not is_username_exists else ""
+            password_security_message = " - Le mot de passe est incorrecte." if not is_valid_password else ""
+            messages = [username_exists_message, password_security_message]
+            error_message = "La création a échoué:\n" + "\n".join([message for message in messages if message])
+
             content = gloutils.ErrorPayload(error_message=error_message)
             message = gloutils.GloMessage(header=header,
                                         payload=content)
@@ -262,8 +303,8 @@ class Server:
         # Le serveur récupère la liste des courriels depuis le dossier de l’utilisateur.
         logger.info("Le serveur recupere la liste de courriels...")
 
-        sender_username = self._logged_users[client_soc]
-        dir_path = self._server_data_dir_path / sender_username / "emails"
+        client_username = self._logged_users[client_soc]
+        dir_path = self._server_data_dir_path / client_username / "emails"
 
         email_list = []
         for email in dir_path.iterdir():
@@ -278,14 +319,14 @@ class Server:
         list_to_send = []
     
         if email_list:
-            for number, email in enumerate(sorted(email_list,
+            for index, email in enumerate(sorted(email_list,
                                                 key=lambda time:
                                                 datetime.strptime(time[-1], "%a, %d %b %Y %H:%M:%S %z"),
                                                 reverse=True),
                                                 start=1):
                 sender, subject, date = email
                 string_to_display = gloutils.SUBJECT_DISPLAY.format(
-                    number=number,
+                    number=index,
                     sender=sender,
                     subject=subject,
                     date=date
@@ -314,8 +355,8 @@ class Server:
         choice = payload["choice"]
 
         # [TODO] Le serveur récupère le courriel associé au choix de l’utilisateur.
-        sender_username = self._logged_users[client_soc]
-        dir_path = self._server_data_dir_path / sender_username / "emails"
+        client_username = self._logged_users[client_soc]
+        dir_path = self._server_data_dir_path / client_username / "emails"
 
         emails = []
         for email in dir_path.iterdir():
@@ -323,12 +364,12 @@ class Server:
                 email_content_payload = json.load(file)
                 emails.append((email_content_payload, email_content_payload["date"]))
 
-        for number, email_payload in enumerate(sorted(emails,
+        for index, email_payload in enumerate(sorted(emails,
                                                       key=lambda time:
                                                       datetime.strptime(time[-1], "%a, %d %b %Y %H:%M:%S %z"),
                                                       reverse=True),
                                                       start=1):
-            if number == choice:
+            if index == choice:
                 email_infos = gloutils.EmailContentPayload(**email_payload[0])
         
         logger.info(f"Le serveur recupere le courriel associe au choix #{choice}.")
@@ -348,11 +389,13 @@ class Server:
         de l'utilisateur associé au socket.
         """
 
-        # [TODO] Le serveur compte le nombre de courriels de l’utilisateur.
-        count = 2 # TEMPORARY
+        user_dir_path = self._server_data_dir_path / self._logged_users[client_soc] / "emails"
 
-        # [TODO] Le serveur calcule le poids total du dossier de l’utilisateur.
-        size = 30 # TEMPORARY
+        # Le serveur compte le nombre de courriels de l’utilisateur.
+        count = sum(1 for file in user_dir_path.iterdir() if file.is_file())
+
+        # Le serveur calcule le poids total du dossier de l’utilisateur.
+        size = sum(file.stat().st_size for file in user_dir_path.iterdir() if file.is_file()) # [TODO] need to ask if we include password file
 
         logger.info(f"Le serveur a compte {count} courriels et {size} comme poids total du dossier")
 
@@ -390,45 +433,67 @@ class Server:
         logger.info("Le serveur verifie que le destinataire existe avant " \
         "avant d'ecrire le contenu du payload dans le dossier de ce destinataire")
 
-        # [TODO] Le serveur vérifie que le destinataire existe.
+        # Variables
+        receiver = self._parse_email_address(payload["destination"]) # !!! TEMPORARY WAY OF PARSING USERNAME...
+        is_receiver_exists = False
+        is_external_receiver = False # [TODO]
 
-        # [TODO] Le serveur utilise les méthodes du module ‘json’ pour écrire le payload tel quel dans
-        # le dossier du destinataire.
+        # Le serveur vérifie que le destinataire existe.
+        for repo in self._server_data_dir_path.iterdir():
+            if repo.name == gloutils.SERVER_LOST_DIR:
+                continue
+            elif receiver.lower() == repo.name.lower():
+                is_receiver_exists = True
+                break
+        
+        # Prep email_id using (sender and sent datetime)
         sender = self._parse_email_address(payload["sender"])
-        print(sender)
         date = payload["date"]
-        internal_receiver_username = self._parse_email_address(payload["destination"]) # !!! TEMPORARY WAY OF PARSING USERNAME...
-
         email_id = hashlib.sha256(f"{sender}_{date}".encode('utf-8')).hexdigest()
         filename = f"{email_id}.json"
 
-        dest_file = self._server_data_dir_path / internal_receiver_username / "emails" / filename
-        with open(dest_file, "w", encoding="utf-8") as file:
-            json.dump(payload, file, indent=4)
-
-        # [TODO] Le serveur indique au client le succès de l’opération avec un entete OK.
+        # Get client_socket by matching sender with logged_users
         for client_socket, logged_username in self._logged_users.items():
             if sender == logged_username:
                 client_soc = client_socket
 
-        header = gloutils.Headers.OK
-        message = gloutils.GloMessage(header=header)
-        data = json.dumps(message)
-        glosocket.send_mesg(client_soc, data)
+        # Le serveur utilise les méthodes du module ‘json’ pour écrire le payload tel quel dans le dossier du destinataire.
+        if is_receiver_exists and not is_external_receiver:
 
-        # [TODO] Si le destinataire n’existe pas, le serveur place le courriel dans le dossier spécial
-        # SERVER_LOST_DIR et répond au client avec un entete ERROR et un message d’erreur
-        # approprié.
+            dest_file = self._server_data_dir_path / receiver / "emails" / filename
 
-        # [TODO] Si le destinataire est externe, le serveur répond au client avec un entete ERROR et 
-        # un message d’erreur approprié.
-        header = gloutils.Headers.ERROR
-        error_message = "Oops, something went wrong." # [TODO] Ecrire un message d'erreur plus explicatif
-        content = gloutils.ErrorPayload(error_message=error_message)
-        message = gloutils.GloMessage(header=header,
-                                      payload=content)
-        data = json.dumps(message)
-        glosocket.send_mesg(client_soc, data)
+            # Le serveur indique au client le succès de l’opération avec un entete OK.
+            header = gloutils.Headers.OK
+            message = gloutils.GloMessage(header=header)
+            data = json.dumps(message)
+            glosocket.send_mesg(client_soc, data)
+
+            # Placer le courriel dans `dest_file`
+            with open(dest_file, "w", encoding="utf-8") as file:
+                json.dump(payload, file, indent=4)
+
+        # Si le destinataire n’existe pas, le serveur place le courriel dans le dossier spécial
+        # SERVER_LOST_DIR et répond au client avec un entete ERROR et un message d’erreur approprié.
+        elif not is_receiver_exists:
+            
+            error_message = "Ce système ne fait pas l'envoi de courriel à l'externe."
+
+            if not is_external_receiver:
+                dest_file = self._server_data_dir_path / gloutils.SERVER_LOST_DIR / filename
+                error_message = "Nous n'avons pas pu trouvé l'utilisateur a qui vous souhaitez enovoyé un courriel."
+
+                # Placer le courriel dans `dest_file`
+                with open(dest_file, "w", encoding="utf-8") as file:
+                    json.dump(payload, file, indent=4)
+
+            # Si le destinataire est externe, le serveur répond au client avec un entete ERROR et 
+            # un message d’erreur approprié.
+            header = gloutils.Headers.ERROR
+            content = gloutils.ErrorPayload(error_message=error_message)
+            message = gloutils.GloMessage(header=header,
+                                        payload=content)
+            data = json.dumps(message)
+            glosocket.send_mesg(client_soc, data)
 
         return message
 

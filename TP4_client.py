@@ -72,7 +72,7 @@ class Client:
             self._username = username
 
         # Si la réponse est ERROR, le client affiche l’erreur et retourne au menu de connexion.
-        if reply["header"] == gloutils.Headers.ERROR:
+        elif reply["header"] == gloutils.Headers.ERROR:
             error_message = reply["payload"]["error_message"]
             print(error_message)
 
@@ -150,36 +150,40 @@ class Client:
 
         # Si la liste contient au moins un courriel, elle est affichée, sinon le client retourne au
         # menu principal.
-        if enumerate(email_list):
+        if email_list:
             for email in email_list:
                 print(email)
 
-        # L’utilisateur choisit un courriel dans la liste.
-        choice = int(input(f"Entrez votre choix [1-{len(email_list)}]: "))
+            # L’utilisateur choisit un courriel dans la liste.
+            choice = int(input(f"Entrez votre choix [1-{len(email_list)}]: "))
 
-        # Le client transmet ce choix avec l’entete INBOX_READING_CHOICE.
-        header = gloutils.Headers.INBOX_READING_CHOICE
-        payload = gloutils.EmailChoicePayload(choice=choice)
-        message = gloutils.GloMessage(header=header,
-                                      payload=payload)
-        data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+            # Le client transmet ce choix avec l’entete INBOX_READING_CHOICE.
+            header = gloutils.Headers.INBOX_READING_CHOICE
+            payload = gloutils.EmailChoicePayload(choice=choice)
+            message = gloutils.GloMessage(header=header,
+                                        payload=payload)
+            data = json.dumps(message)
+            glosocket.send_mesg(self._client_socket, data)
 
-        # Reception de la reponse du serveur
-        data = glosocket.recv_mesg(self._client_socket)
-        reply = json.loads(data)
-        email_content = reply["payload"]
+            # Reception de la reponse du serveur
+            data = glosocket.recv_mesg(self._client_socket)
+            reply = json.loads(data)
+            email_content = reply["payload"]
 
-        # Le client affiche le courriel à l’aide du gabarit EMAIL_DISPLAY et retourne au menu
-        # principal.
-        string_to_display = gloutils.EMAIL_DISPLAY.format(
-            sender=email_content["sender"],
-            to=email_content["destination"],
-            subject=email_content["subject"],
-            date=email_content["date"],
-            body=email_content["content"],
-        )
-        print(string_to_display)
+            # Le client affiche le courriel à l’aide du gabarit EMAIL_DISPLAY et retourne au menu
+            # principal.
+            string_to_display = gloutils.EMAIL_DISPLAY.format(
+                sender=email_content["sender"],
+                to=email_content["destination"],
+                subject=email_content["subject"],
+                date=email_content["date"],
+                body=email_content["content"],
+            )
+            print(string_to_display)
+        
+        # s'il n'y pas de courriel, on averti l'utilisateur
+        else:
+            print("Vous n'avez aucun courriel.")
 
     def _send_email(self) -> None:
         """
@@ -193,7 +197,8 @@ class Client:
         Transmet ces informations avec l'entête `EMAIL_SENDING`.
         """
 
-        # [TODO] Le client demande à l’utilisateur respectivement :
+        # Le client demande à l’utilisateur respectivement :
+        sender = f"{self._username}@{gloutils.SERVER_DOMAIN}"
         destination = input("Entrez l'adresse du destinataire: ")
         subject = input("Entrez le sujet: ")
         print("Entrez le contenu du courriel, terminez la saisie avec un '.'seul sur une ligne:")
@@ -203,13 +208,13 @@ class Client:
             body += buffer
             buffer = input() + '\n'
 
-        # [TODO] Le client récupère l’heure courante depuis le module ‘gloutils’.
+        # Le client récupère l’heure courante depuis le module ‘gloutils’.
         current_date_time = gloutils.get_current_utc_time()
 
-        # [TODO] Le client transfère les informations avec un entete EMAIL_SENDING.
+        # Le client transfère les informations avec un entete EMAIL_SENDING.
         header = gloutils.Headers.EMAIL_SENDING
         payload = gloutils.EmailContentPayload(
-            sender=f"{self._username}@{gloutils.SERVER_DOMAIN}",
+            sender=sender,
             destination=destination,
             subject=subject,
             date=current_date_time,
@@ -224,10 +229,9 @@ class Client:
         data = glosocket.recv_mesg(self._client_socket)
         reply = json.loads(data)
 
-        # [TODO] Le client affiche si l’envoi s’est effectué avec succès.
-        destinataire = "NOM TEMPORAIRE"
+        # Le client affiche si l’envoi s’est effectué avec succès.
         if reply["header"] == gloutils.Headers.OK:
-            print(f"Votre courriel a bel et bien ete envoyer a {destinataire} !")
+            print(f"Votre courriel a bel et bien ete envoyer a {destination} !")
 
     def _check_stats(self) -> None:
         """
@@ -235,7 +239,7 @@ class Client:
 
         Affiche les statistiques à l'aide du gabarit `STATS_DISPLAY`.
         """
-        # [TODO] Le client demande les statistiques du compte avec un entete STATS_REQUEST.
+        # Le client demande les statistiques du compte avec un entete STATS_REQUEST.
         header = gloutils.Headers.STATS_REQUEST
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
@@ -244,14 +248,9 @@ class Client:
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
         reply = json.loads(data)
-        count = reply["payload"]["count"]
-        size = reply["payload"]["size"]
 
-        # [TODO] Le client affiche les statistiques en utilisant le gabarit STATS_DISPLAY.
-        string_to_display = gloutils.STATS_DISPLAY.format(
-            count=count,
-            size=size
-        )
+        # Le client affiche les statistiques en utilisant le gabarit STATS_DISPLAY.
+        string_to_display = gloutils.STATS_DISPLAY.format(**reply["payload"])
         print(string_to_display)
 
     def _logout(self) -> None:
@@ -261,13 +260,13 @@ class Client:
         Met à jour l'attribut `_username`.
         """
 
-        # [TODO] Le client informe le serveur de la déconnexion avec l’entete AUTH_LOGOUT.
+        # Le client informe le serveur de la déconnexion avec l’entete AUTH_LOGOUT.
         header = gloutils.Headers.AUTH_LOGOUT
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
         glosocket.send_mesg(self._client_socket, data)
 
-        # [TODO] Le client retourne sur le menu de connexion.
+        # Le client retourne sur le menu de connexion.
         self._username = ""
 
     def run(self) -> None:
@@ -276,11 +275,14 @@ class Client:
         should_quit = False
         while not should_quit:
             if not self._username:
-
-                # Le client affiche le menu de connexion à l’utilisateur.
                 print(gloutils.CLIENT_AUTH_CHOICE)
 
-                match int(input("Entrez votre choix [1-3]: ")):
+                # S'assurer que l'entree est valide
+                if (user_input := input("Entrez votre choix [1-3]: ")) not in ["1", "2", "3"]:
+                    print(f"Aucune option correspond à {user_input}. Réessayez.")
+                    continue
+
+                match int(user_input):
                     case 1:
                         self._register()
                     case 2:
@@ -290,8 +292,13 @@ class Client:
                         should_quit = True
             else:
                 print(gloutils.CLIENT_USE_CHOICES)
-                
-                match int(input("Entrez votre choix [1-4]: ")):
+
+                # S'assurer que l'entree est valide
+                if (user_input := input("Entrez votre choix [1-4]: ")) not in ["1", "2", "3", "4"]:
+                    print(f"Aucune option correspond à {user_input}. Réessayez.")
+                    continue
+
+                match int(user_input):
                     case 1:
                         self._read_email()
                     case 2:
