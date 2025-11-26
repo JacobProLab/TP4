@@ -30,14 +30,14 @@ class Client:
         self._destination = destination
 
         # Crée un socket et le connecte au serveur.
-        self._client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        address = (self._destination, gloutils.APP_PORT)
-
         try:
+            self._client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            address = (self._destination, gloutils.APP_PORT)
             self._client_socket.connect(address)
 
         # Si la connexion est impossible, le constructeur fait appel à la méthode sys.exit avec un code différent de 0.
         except OSError:
+            self._client_socket.close()
             sys.exit(1)
 
     def _try_send_message(self, destination_socket: socket.socket, message: str) -> None:

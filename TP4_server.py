@@ -47,16 +47,15 @@ class Server:
         self._localhost = "127.0.0.1"
         self._email_subfolder_name = "emails"
 
-        # Cree le socket en mode IPv4 et TCP
-        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
-        # Mets en ecoute sur le port `APP_PORT`
+        # Cree le socket en mode IPv4 et TCP et mets en ecoute sur le port `APP_PORT`
         try:
+            self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._server_socket.bind((self._localhost, gloutils.APP_PORT))
+            self._server_socket.listen()
         except OSError:
+            self._server_socket.close()
             sys.exit(1)
-        self._server_socket.listen()
 
         # Prepare une liste vide pour les sockets clients connectes
         self._client_socs: list[socket.socket] = []
@@ -80,9 +79,11 @@ class Server:
 
     def _accept_client(self) -> None:
         """Accepte un nouveau client."""
-
         # Le serveur accepte la connexion
-        client_socket, _ = self._server_socket.accept()
+        try:
+            client_socket, _ = self._server_socket.accept()
+        except OSError:
+            return
 
         # Le serveur ajoute le client a la liste des sockets connectes
         self._client_socs.append(client_socket)
@@ -99,7 +100,11 @@ class Server:
 
         if client_soc in self._client_socs:
             self._client_socs.remove(client_soc)
-        client_soc.close()
+            
+        try:
+            client_soc.close()
+        except OSError:
+            pass
 
         logger.info(
             f"""Un client a quitte. Le serveur a retire le socket associe a
@@ -396,13 +401,15 @@ class Server:
             self._server_data_dir_path / client_username / self._email_subfolder_name
         )
 
-        # get email at index `choice` (pas du clean code mais fonctionnel pour la remise...)
+        # get email list
         emails = []
         for email in dir_path.iterdir():
             with open(email, "r", encoding="utf-8") as file:
                 email_content_payload = json.load(file)
                 emails.append((email_content_payload, email_content_payload["date"]))
 
+        # loop through sorted(emails) to get email at index `choice`
+        # (pas du clean code mais fonctionnel pour la remise...)
         for index, email_payload in enumerate(
             sorted(
                 emails,
@@ -415,6 +422,7 @@ class Server:
         ):
             if index == choice:
                 email_infos = gloutils.EmailContentPayload(**email_payload[0])
+                break
 
         logger.info(f"Le serveur recupere le courriel associe au choix #{choice}.")
 
@@ -499,8 +507,10 @@ class Server:
 
         # Verifier si dest_address est une adresse courriel valide
         if re.fullmatch(valid_address_pattern, dest_address):
+
             # Verifier si c'est une adresse interne
             if re.fullmatch(internal_address_pattern, dest_address):
+
                 # Prep email_id using (sender and sent datetime)
                 email_id = hashlib.sha256(
                     f"{sender_username}_{date}".encode("utf-8")
@@ -521,6 +531,7 @@ class Server:
                         break
 
                 if is_receiver_exists:
+
                     dest_file = (
                         self._server_data_dir_path
                         / receiver_username
@@ -535,6 +546,7 @@ class Server:
                     self._try_send_message(client_soc, data)
 
                 else:
+
                     dest_file = (
                         self._server_data_dir_path
                         / self._server_lost_dir_path
