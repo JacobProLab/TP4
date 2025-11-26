@@ -54,7 +54,7 @@ class Client:
         username = input("Entrez un nom d'utilisateur: ")
         password = getpass.getpass("Entrez un mot de passe: ")
 
-        # Le client les transmet au serveur avec l’entete AUTH_ appropriée.
+        # Le client les transmet au serveur avec l’entete AUTH_REGISTER.
         header = gloutils.Headers.AUTH_REGISTER
         payload = gloutils.AuthPayload(username=username,
                                        password=password)
@@ -88,6 +88,7 @@ class Client:
         username = input("Entrez un nom d'utilisateur: ")
         password = getpass.getpass("Entrez un mot de passe: ")
 
+        # Le client les transmet au serveur avec l’entete AUTH_LOGIN.
         header = gloutils.Headers.AUTH_LOGIN
         payload = gloutils.AuthPayload(username=username,
                                        password=password)
@@ -196,9 +197,10 @@ class Client:
 
         Transmet ces informations avec l'entête `EMAIL_SENDING`.
         """
-
-        # Le client demande à l’utilisateur respectivement :
+        # Variables
         sender = f"{self._username}@{gloutils.SERVER_DOMAIN}"
+
+        # Le client demande à l’utilisateur respectivement : dest, subject, body
         destination = input("Entrez l'adresse du destinataire: ")
         subject = input("Entrez le sujet: ")
         print("Entrez le contenu du courriel, terminez la saisie avec un '.'seul sur une ligne:")
@@ -231,7 +233,10 @@ class Client:
 
         # Le client affiche si l’envoi s’est effectué avec succès.
         if reply["header"] == gloutils.Headers.OK:
-            print(f"Votre courriel a bel et bien ete envoyer a {destination} !")
+            print(f"Votre courriel a bel et bien été envoyé à {destination} !")
+
+        elif reply["header"] == gloutils.Headers.ERROR:
+            print(reply["payload"]["error_message"])
 
     def _check_stats(self) -> None:
         """
