@@ -36,9 +36,15 @@ class Client:
         try:
             self._client_socket.connect(address)
 
-        # Si la connexion est impossible, le constructeur fait appel à la méthode sys.exit avec
-        # un code différent de 0.
+        # Si la connexion est impossible, le constructeur fait appel à la méthode sys.exit avec un code différent de 0.
         except OSError:
+            sys.exit(1)
+
+    def _try_send_message(self, destination_socket: socket.socket, message: str) -> None:
+        try:
+            glosocket.send_mesg(destination_socket, message)
+        except glosocket.GLOSocketError:
+            self._client_socket.close()
             sys.exit(1)
 
     def _register(self) -> None:
@@ -61,7 +67,7 @@ class Client:
         message = gloutils.GloMessage(header=header,
                                       payload=payload)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
@@ -95,7 +101,7 @@ class Client:
         message = gloutils.GloMessage(header=header,
                                       payload=payload)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
@@ -119,7 +125,7 @@ class Client:
         header = gloutils.Headers.BYE
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # ...avant de fermer la connexion.
         self._client_socket.close()
@@ -142,7 +148,7 @@ class Client:
         header = gloutils.Headers.INBOX_READING_REQUEST
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
@@ -164,7 +170,7 @@ class Client:
             message = gloutils.GloMessage(header=header,
                                         payload=payload)
             data = json.dumps(message)
-            glosocket.send_mesg(self._client_socket, data)
+            self._try_send_message(self._client_socket, data)
 
             # Reception de la reponse du serveur
             data = glosocket.recv_mesg(self._client_socket)
@@ -225,7 +231,7 @@ class Client:
         message = gloutils.GloMessage(header=header,
                                       payload=payload)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
@@ -248,7 +254,7 @@ class Client:
         header = gloutils.Headers.STATS_REQUEST
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Reception de la reponse du serveur
         data = glosocket.recv_mesg(self._client_socket)
@@ -269,7 +275,7 @@ class Client:
         header = gloutils.Headers.AUTH_LOGOUT
         message = gloutils.GloMessage(header=header)
         data = json.dumps(message)
-        glosocket.send_mesg(self._client_socket, data)
+        self._try_send_message(self._client_socket, data)
 
         # Le client retourne sur le menu de connexion.
         self._username = ""
