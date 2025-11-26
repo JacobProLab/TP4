@@ -66,12 +66,11 @@ class Server:
         # authentifies a leur nom d'utilisateur
         self._logged_users: dict[socket.socket, str] = {}
 
-
         # S'assurer que le dossier SERVER_DATA_DIR existe et
         # et qu'il contient le SERVER_LOST_DIR. Les creer sinon.
-
         self._server_data_dir_path = Path(gloutils.SERVER_DATA_DIR)
-        fullpath = self._server_data_dir_path / gloutils.SERVER_LOST_DIR
+        self._server_lost_dir_path = gloutils.SERVER_LOST_DIR
+        fullpath = self._server_data_dir_path / self._server_lost_dir_path
         fullpath.mkdir(parents=True, exist_ok=True)
 
         logger.info("On s'assure que le dossier `SERVER_DATA_DIR`.")
@@ -131,7 +130,7 @@ class Server:
                 - password: {password}"""
         )
 
-        # [TODO] VALIDER LES INFORMATIONS DU CLIENT
+        # VALIDER LES INFORMATIONS DU CLIENT
 
         logger.info("Le serveur valide les informations du client.")
 
@@ -143,7 +142,7 @@ class Server:
         # n'est pas `gloutils.SERVER_LOST_DIR` *Note : les noms sont insensibles a la casse (BOB == bob)
         is_not_taken_username = True
         for repo in self._server_data_dir_path.iterdir():
-            if username.lower() in [repo.name.lower(), gloutils.SERVER_LOST_DIR.lower()]:
+            if username.lower() in [repo.name.lower(), self._server_lost_dir_path.lower()]:
                 is_not_taken_username = False
                 break
 
@@ -241,7 +240,7 @@ class Server:
 
         # Le serveur s’assure que le nom d’utilisateur existe.
         for repo in self._server_data_dir_path.iterdir():
-            if repo.name == gloutils.SERVER_LOST_DIR:
+            if repo.name == self._server_lost_dir_path:
                 continue
             elif username.lower() == repo.name.lower():
                 is_username_exists = True
@@ -440,7 +439,7 @@ class Server:
 
         # Le serveur vérifie que le destinataire existe.
         for repo in self._server_data_dir_path.iterdir():
-            if repo.name == gloutils.SERVER_LOST_DIR:
+            if repo.name == self._server_lost_dir_path:
                 continue
             elif receiver.lower() == repo.name.lower():
                 is_receiver_exists = True
@@ -479,7 +478,7 @@ class Server:
             error_message = "Ce système ne fait pas l'envoi de courriel à l'externe."
 
             if not is_external_receiver:
-                dest_file = self._server_data_dir_path / gloutils.SERVER_LOST_DIR / filename
+                dest_file = self._server_data_dir_path / self._server_lost_dir_path / filename
                 error_message = "Nous n'avons pas pu trouvé l'utilisateur a qui vous souhaitez enovoyé un courriel."
 
                 # Placer le courriel dans `dest_file`
