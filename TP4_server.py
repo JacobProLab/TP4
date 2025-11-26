@@ -1,8 +1,8 @@
 """\
 GLO-2000 Travail pratique 4 - Serveur 2025
 Noms et numéros étudiants:
-- Samuel Blanchette
-- Wiseley
+- Samuel Blanchette 111 159 329
+- Wiseley Paul Enzer Petiton 537 047 716
 - Jacob Provencher 111 272 785
 """
 
